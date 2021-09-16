@@ -5,7 +5,6 @@ if (uuidRegex.test(tournamentUuid) != true) {
   return;
 }
 
-let date = new Date();
 const rockset = require("rockset").default(process.env.API_KEY, "https://api.rs2.usw2.rockset.com");
 
 (async function() {

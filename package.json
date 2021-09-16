@@ -2,16 +2,12 @@
   "name": "gamercraft",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node -r dotenv/config index.js"
+    "start": "func start",
+    "test": "echo \"No tests yet...\""
   },
-  "author": "",
-  "license": "ISC",
   "dependencies": {
-    "axios": "^0.21.4",
-    "dotenv": "^10.0.0",
     "rockset": "^3.3.0"
-  }
+  },
+  "devDependencies": {}
 }
