@@ -13,17 +13,40 @@ module.exports = async function (context, req) {
     }
 
     const response = await rockset.queries.query({
-        sql: { query: `SELECT t.* FROM commons.dynamodb_tournaments t WHERE t.tournamentUuid='${tournamentUuid}' AND _tp='TournamentTeamEntry'` }
+        sql: {
+            query: `SELECT
+                        t.*, t2.gameUsername
+                    FROM
+                        commons.dynamodb_tournaments t
+                    LEFT JOIN dynamodb_tournaments t2
+                    ON t.userUuid = t2.userUuid and t2._et='GamerProfile'
+                    WHERE
+                        t.tournamentUuid='${tournamentUuid}'`
+        }
     });
 
-    const { results: teams } = response;
-
     let responseText = "";
+    const users = {};
+    const teams = [];
+
+    // store members into a map
+    for (let result of response.results) {
+        switch (result["_et"]) {
+            case "TournamentTeamUserEntry": {
+                users[result["userUuid"]] = result;
+                break;
+            }
+            case "TournamentTeamEntry": {
+                teams.push(result);
+                break;
+            }
+        }
+    }
 
     for ({ members: teamMembers, name: teamName } of teams) {
         let summoners = [];
         teamMembers.forEach(member => {
-            summoners.push(member.gameUsername);
+            summoners.push(users[member["userUuid"]].gameUsername);
         });
 
         responseText += `<a href="https://na.op.gg/multi/query=${encodeURIComponent(summoners.join(", "))}">${teamName}</a></br>\n`;
