@@ -1,5 +1,5 @@
 const rockset = require("rockset").default(process.env.API_KEY, "https://api.rs2.usw2.rockset.com");
-const moment = require("moment");
+const moment = require("moment-timezone");
 
 module.exports = async function (context, req) {
     context.log('JavaScript HTTP trigger function processed a request.');
@@ -34,15 +34,15 @@ module.exports = async function (context, req) {
                     document.querySelectorAll('.spots').forEach(node => {
                         const uuid = node.getAttribute("data-uuid");
                         const opggUrl = 'tournamentopgg?' + (code !== "" ? \`code=\${encodeURIComponent(code)}&\` : "") + \`tournamentUuid=\${uuid}\`;
-                        console.log(node.setAttribute("href", opggUrl));
+                        node.setAttribute("href", opggUrl);
                     })
                 });
             </script>
             </head>
             <body>
                 ${results.map(tournament => {
-                    const datePart = moment(new Date(tournament.startDate)).format('dddd, MMM DD');
-                    const timePart = moment(new Date(tournament.startDate)).format('hh:mm A');
+                    const datePart = moment(new Date(tournament.startDate)).tz('America/Los_Angeles').format('dddd, MMM DD');
+                    const timePart = moment(new Date(tournament.startDate)).tz('America/Los_Angeles').format('hh:mm A');
                     return `<div>${datePart} @ ${timePart} -- ${tournament.name} -- <a data-uuid="${tournament.uuid}" class="spots">spots filled: ${tournament.spotsFilled}</a></div>`;
                 }).join("\n")}
             </body>
