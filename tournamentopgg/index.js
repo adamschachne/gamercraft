@@ -46,7 +46,7 @@ module.exports = async function (context, req) {
     for ({ members: teamMembers, name: teamName } of teams) {
         let summoners = [];
         teamMembers.forEach(member => {
-            summoners.push(users[member["userUuid"]].gameUsername);
+            summoners.push(member.gameUsername);
         });
 
         responseText += `<a href="https://na.op.gg/multi/query=${encodeURIComponent(summoners.join(", "))}">${teamName}</a></br>\n`;
