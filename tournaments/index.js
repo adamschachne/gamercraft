@@ -1,5 +1,8 @@
 const rockset = require("rockset").default(process.env.API_KEY, "https://api.rs2.usw2.rockset.com");
+const ejs = require("ejs");
 const moment = require("moment-timezone");
+const fs = require("fs");
+const path = require("path");
 
 module.exports = async function (context, req) {
     context.log('JavaScript HTTP trigger function processed a request.');
@@ -12,42 +15,16 @@ module.exports = async function (context, req) {
 
     const { results } = response;
 
-    const responseText = `
-        <!DOCTYPE html>
-        <html>
-            <head>
-            <script>
-                function getQueryVariable(variable) {
-                    var query = location.search.substring(1);
-                    var vars = query.split('&');
-                    for (var i = 0; i < vars.length; i++) {
-                        var pair = vars[i].split('=');
-                        if (decodeURIComponent(pair[0]) == variable) {
-                            return decodeURIComponent(pair[1]);
-                        }
-                    }
-                    return "";
-                }
-                var code = getQueryVariable("code");
-                
-                document.addEventListener("DOMContentLoaded", function() {
-                    document.querySelectorAll('.spots').forEach(node => {
-                        const uuid = node.getAttribute("data-uuid");
-                        const opggUrl = 'tournamentopgg?' + (code !== "" ? \`code=\${encodeURIComponent(code)}&\` : "") + \`tournamentUuid=\${uuid}\`;
-                        node.setAttribute("href", opggUrl);
-                    })
-                });
-            </script>
-            </head>
-            <body>
-                ${results.map(tournament => {
-                    const datePart = moment(new Date(tournament.startDate)).tz('America/Los_Angeles').format('dddd, MMM DD');
-                    const timePart = moment(new Date(tournament.startDate)).tz('America/Los_Angeles').format('hh:mm A');
-                    return `<div>${datePart} @ ${timePart} -- ${tournament.name} -- <a data-uuid="${tournament.uuid}" class="spots">spots filled: ${tournament.spotsFilled}</a></div>`;
-                }).join("\n")}
-            </body>
-        </html>
-        `;
+    const tournaments = results.map(tournament => {
+        return {
+            ...tournament,
+            datePart: moment(new Date(tournament.startDate)).tz('America/Los_Angeles').format('dddd, MMM DD'),
+            timePart: moment(new Date(tournament.startDate)).tz('America/Los_Angeles').format('hh:mm A'),
+            prize: tournament.totalPrizePool.type == 'cash' ? "$" + tournament.totalPrizePool.amount : tournament.totalPrizePool.amount + " credits"
+        }
+    })
+    
+    const responseText = await ejs.renderFile(path.resolve(__dirname, "index.ejs"), { tournaments }); 
 
     context.res = {
         headers: {

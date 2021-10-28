@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <style>
+    body {
+      margin: 0;
+    }
+
+    .container {
+      max-width: 800px;
+      position: relative;
+      margin: 0 auto;
+    }
+
+    @media (min-width: 550px) {
+      .container {
+        width: 80%;
+      }
+    }
+
+    @media (min-width: 400px) {
+      .container {
+        width: 85%;
+        padding: 0;
+      }
+    }
+
+    .border {
+      border: 1px solid #E1E1E1;
+      border-radius: 4px;
+    }
+
+    .tournament-card-logo {
+      padding-top: 0px;
+      top: 4px;
+      position: relative;
+      width: auto;
+      height: 55px;
+    }
+
+    #tournament-table td:first-child {
+      padding: 0;
+    }
+
+  </style>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/skeleton/2.0.4/skeleton.min.css">
+  <script>
+    function getQueryVariable(variable) {
+      var query = location.search.substring(1);
+      var vars = query.split('&');
+      for (var i = 0; i < vars.length; i++) {
+        var pair = vars[i].split('=');
+        if (decodeURIComponent(pair[0]) == variable) {
+          return decodeURIComponent(pair[1]);
+        }
+      }
+      return "";
+    }
+    var code = getQueryVariable("code");
+
+    document.addEventListener("DOMContentLoaded", function () {
+      document.querySelectorAll('.spots').forEach(node => {
+        const uuid = node.getAttribute("data-uuid");
+        const opggUrl = 'tournamentopgg?' + (code !== "" ? `code=${encodeURIComponent(code)}&` : "") + `tournamentUuid=${uuid}`;
+        node.setAttribute("href", opggUrl);
+      })
+    });
+  </script>
+</head>
+
+<body>
+  <div class="container">
+
+    <table id="tournament-table" style="padding-top: 2rem" class="u-full-width">
+      <thead>
+        <tr>
+          <th></th>
+          <th>Date</th>
+          <th>Name</th>
+          <th>Prize Pool</th>
+          <th>Spots Filled</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% tournaments.forEach(tournament=> { %>
+          <tr>
+            <td>
+              <img src="<%= tournament.logoImage %>" alt="" class="tournament-card-logo">
+            </td>
+            <td>
+              <%= tournament.datePart %> @ <%= tournament.timePart %>
+            </td>
+            <td>
+              <%= tournament.name %>
+            </td>
+            <td>
+              <%= tournament.prize %>
+            </td>
+            <td>
+              <a data-uuid="<%= tournament.uuid %>" class="spots">
+                spots filled: <%= tournament.spotsFilled %>
+              </a>
+            </td>
+          </tr>
+          <% }) %>
+      </tbody>
+    </table>
+  </div>
+</body>
+
+</html>
