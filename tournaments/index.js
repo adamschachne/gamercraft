@@ -16,11 +16,13 @@ module.exports = async function (context, req) {
     const { results } = response;
 
     const tournaments = results.map(tournament => {
+        const amountString = "" + tournament.totalPrizePool.amount;
+        const prizeAmount = amountString.slice(0, -2) + "." + amountString.slice(-2) ;
         return {
             ...tournament,
             datePart: moment(new Date(tournament.startDate)).tz('America/Los_Angeles').format('dddd, MMM DD'),
             timePart: moment(new Date(tournament.startDate)).tz('America/Los_Angeles').format('hh:mm A'),
-            prize: tournament.totalPrizePool.type == 'cash' ? "$" + tournament.totalPrizePool.amount : tournament.totalPrizePool.amount + " credits"
+            prize: tournament.totalPrizePool.type == 'cash' ? "$" + prizeAmount : prizeAmount + " credits"
         }
     })
     
