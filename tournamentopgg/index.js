@@ -1,3 +1,4 @@
+const axios = require("axios").default;
 const rockset = require("rockset").default(process.env.API_KEY, "https://api.rs2.usw2.rockset.com");
 const uuidRegex = /\b[0-9a-f]{8}\b-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-\b[0-9a-f]{12}\b/;
 
@@ -44,12 +45,17 @@ module.exports = async function (context, req) {
     }
 
     for ({ members: teamMembers, name: teamName } of teams) {
-        let summoners = [];
+        const requests = [];
         teamMembers.forEach(member => {
-            summoners.push(member.gameUsername);
+            const url = new URL(`tournament-service/users/${member.userUuid}/video-games/LOL/regions/NA1`, process.env.API_GATEWAY_BASE_URL).href;
+            requests.push(axios.get(url, {
+                headers: {
+                    "authorization": `Bearer ${process.env.API_BEARER_TOKEN}`
+                }
+            }));
         });
-
-        responseText += `<a href="https://na.op.gg/multi/query=${encodeURIComponent(summoners.join(", "))}">${teamName}</a></br>\n`;
+        const summoners = await Promise.all(requests);
+        responseText += `<a href="https://na.op.gg/multi/query=${encodeURIComponent(summoners.map(summoner => summoner.data).join(", "))}">${teamName}</a></br>\n`;
     }
 
     context.res = {

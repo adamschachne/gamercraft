@@ -7,6 +7,7 @@
     "test": "echo \"No tests yet...\""
   },
   "dependencies": {
+    "axios": "^0.24.0",
     "ejs": "^3.1.6",
     "moment-timezone": "^0.5.33",
     "rockset": "^3.3.0"
