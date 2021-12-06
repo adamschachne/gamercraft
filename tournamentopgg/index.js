@@ -47,7 +47,7 @@ module.exports = async function (context, req) {
     for ({ members: teamMembers, name: teamName } of teams) {
         const requests = [];
         teamMembers.forEach(member => {
-            const url = new URL(`tournament-service/users/${member.userUuid}/video-games/LOL/regions/NA1`, process.env.API_GATEWAY_BASE_URL).href;
+            const url = new URL(`production/tournament-service/users/${member.userUuid}/video-games/LOL/regions/NA1`, process.env.API_GATEWAY_BASE_URL).href;
             requests.push(axios.get(url, {
                 headers: {
                     "authorization": `Bearer ${process.env.API_BEARER_TOKEN}`
