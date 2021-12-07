@@ -1,4 +1,3 @@
-const axios = require("axios").default;
 const rockset = require("rockset").default(process.env.API_KEY, "https://api.rs2.usw2.rockset.com");
 const uuidRegex = /\b[0-9a-f]{8}\b-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-\b[0-9a-f]{12}\b/;
 
@@ -44,18 +43,32 @@ module.exports = async function (context, req) {
         }
     }
 
-    for ({ members: teamMembers, name: teamName } of teams) {
-        const requests = [];
-        teamMembers.forEach(member => {
-            const url = new URL(`production/tournament-service/users/${member.userUuid}/video-games/LOL/regions/NA1`, process.env.API_GATEWAY_BASE_URL).href;
-            requests.push(axios.get(url, {
-                headers: {
-                    "authorization": `Bearer ${process.env.API_BEARER_TOKEN}`
+    responseText += `<script>
+
+        function getQueryVariable(variable) {
+            var query = location.search.substring(1);
+            var vars = query.split('&');
+            for (var i = 0; i < vars.length; i++) {
+                var pair = vars[i].split('=');
+                if (decodeURIComponent(pair[0]) == variable) {
+                    return decodeURIComponent(pair[1]);
                 }
-            }));
+            }
+            return "";
+        }
+
+        var code = getQueryVariable("code");
+        document.addEventListener("DOMContentLoaded", function () {
+            document.querySelectorAll('a').forEach(node => {
+                const teamUuids = node.getAttribute("data-uuids");
+                const teamOpggUrl = 'teamopgg?' + (code !== "" ? \`code=\${encodeURIComponent(code)}&\` : "") + \`uuids=\${teamUuids}\`;
+                node.setAttribute("href", teamOpggUrl);
+            });
         });
-        const summoners = await Promise.all(requests);
-        responseText += `<a href="https://na.op.gg/multi/query=${encodeURIComponent(summoners.map(summoner => summoner.data).join(", "))}">${teamName}</a></br>\n`;
+        </script>
+    `;
+    for ({ members: teamMembers, name: teamName } of teams) {
+        responseText += `<a data-uuids="${encodeURIComponent(JSON.stringify(teamMembers.map(member => member.userUuid)))}">${teamName}</a></br>\n`;
     }
 
     context.res = {

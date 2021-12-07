@@ -61,7 +61,7 @@
         document.addEventListener("DOMContentLoaded", function () {
             document.querySelectorAll('.spots').forEach(node => {
                 const uuid = node.getAttribute("data-uuid");
-                const opggUrl = 'tournamentopgg?' + (code !== "" ? `code=${encodeURIComponent(code)}&` : "") + `tournamentUuid=${uuid}`;
+                const opggUrl = 'tournament?' + (code !== "" ? `code=${encodeURIComponent(code)}&` : "") + `tournamentUuid=${uuid}`;
                 node.setAttribute("href", opggUrl);
             })
         });
