@@ -3,13 +3,51 @@ const { MongoClient } = require("mongodb");
 
 const mongoURI = process.env.MONGO_CONNECTION_STRING;
 const client = new MongoClient(mongoURI);
+
+// amazon cognito identity needs fetch
+require('cross-fetch/polyfill');
+const AmazonCognitoIdentity = require('amazon-cognito-identity-js');
+
 const oauth = {
-    token: null
+    refreshToken: null,
+    idToken: null
 };
+
+/** @returns {Promise<AmazonCognitoIdentity.CognitoUserSession>} */
+function cognitoLogin() {
+    const authenticationData = {
+        Username: process.env.COGNITO_USERNAME,
+        Password: process.env.COGNITO_PASSWORD,
+    };
+    const authenticationDetails = new AmazonCognitoIdentity.AuthenticationDetails(authenticationData);
+    const poolData = {
+        UserPoolId: process.env.COGNITO_USER_POOL_ID,
+        ClientId: process.env.COGNITO_CLIENT_ID,
+    };
+    const userPool = new AmazonCognitoIdentity.CognitoUserPool(poolData);
+    const userData = {
+        Username: process.env.COGNITO_USERNAME,
+        Pool: userPool,
+    };
+    const cognitoUser = new AmazonCognitoIdentity.CognitoUser(userData);
+
+    return new Promise((res, rej) => {
+        cognitoUser.authenticateUser(authenticationDetails, {
+            onSuccess: function (result) {
+                res(result);
+            },
+            onFailure: function (err) {
+                console.error(err);
+                rej();
+            }
+        });
+    })
+}
 
 module.exports = async function (context, req) {
 
     const { uuids = "[]" } = req.query;
+
     let parsedUuids;
     try {
         parsedUuids = JSON.parse(decodeURIComponent(uuids));
@@ -33,7 +71,6 @@ module.exports = async function (context, req) {
         message: ""
     };
 
-    
     // see if the account ids already exist
     try {
         await client.connect();
@@ -47,13 +84,21 @@ module.exports = async function (context, req) {
             }
         });
 
+        /** @param session {AmazonCognitoIdentity.CognitoUserSession} */
+        async function updateTokens(idToken, refreshToken) {
+            oauth.idToken = idToken;
+            oauth.refreshToken = refreshToken;
+            await oauthCollection.updateOne({ "id": "tokens" }, { $set: { "idToken": idToken, "refreshToken": refreshToken } }, { upsert: true });
+            return;
+        }
+
         function getNewToken() {
             return new Promise((resolve, reject) => {
                 axios.post(process.env.TOKEN_ENDPOINT,
                     {
                         "ClientId": process.env.API_CLIENT_ID,
                         "AuthFlow": "REFRESH_TOKEN_AUTH",
-                        "AuthParameters": { "REFRESH_TOKEN": process.env.API_REFRESH_TOKEN }
+                        "AuthParameters": { "REFRESH_TOKEN": oauth.REFRESH_TOKEN }
                     },
                     {
                         headers: {
@@ -65,10 +110,14 @@ module.exports = async function (context, req) {
                         },
                     }
                 ).then(async result => {
-                    await oauthCollection.updateOne({ "id": "idToken" }, { $set: { "token": oauth.token } }, { upsert: true });
-                    resolve(result.data.AuthenticationResult.IdToken);
+                    oauth.token = result.data.AuthenticationResult.IdToken
+                    await updateTokens(session.getIdToken().getJwtToken(), oauth.refreshToken).then(resolve)
+                    resolve();
                 }).catch(err => {
-                    reject(err);
+                    // try to log in again to reobtain refresh token
+                    cognitoLogin().then(session => {
+                        updateTokens(session.getIdToken().getJwtToken(), session.getRefreshToken().getToken()).then(resolve)
+                    }).catch(reject)
                 });
             });
         }
@@ -76,11 +125,11 @@ module.exports = async function (context, req) {
         const promises = [];
         const databaseUpdates = [];
 
-        // the users that have an accountId stored already
-        await cursor.forEach(({ uuid, accountId }) => {
-            uuidsToAccount[uuid].accountId = accountId;
+        // the users that have a puuid stored already
+        await cursor.forEach(({ uuid, puuid }) => {
+            uuidsToAccount[uuid].puuid = puuid;
             promises.push(new Promise((resolve, reject) => {
-                axios.get(`https://na1.api.riotgames.com/lol/summoner/v4/summoners/by-account/${accountId}?api_key=${process.env.RIOT_API_KEY}`).then(({
+                axios.get(`https://na1.api.riotgames.com/lol/summoner/v4/summoners/by-puuid/${puuid}?api_key=${process.env.RIOT_API_KEY}`).then(({
                     data: {
                         name
                     }
@@ -93,42 +142,44 @@ module.exports = async function (context, req) {
             }));
         });
 
-        const untrackedAccounts = Object.entries(uuidsToAccount).reduce((acc, [uuid, { accountId }]) => {
-            if (accountId === undefined) {
+        const untrackedAccounts = Object.entries(uuidsToAccount).reduce((acc, [uuid, { puuid }]) => {
+            if (puuid === undefined) {
                 acc.push(uuid);
             }
             return acc;
         }, []);
 
         if (untrackedAccounts.length > 0) {
-            const cachedTokenResult = await oauthCollection.findOne({ "id": "idToken" });
+            const cachedTokenResult = await oauthCollection.findOne({ "id": "tokens" });
             if (!cachedTokenResult) {
-                oauth.token = await getNewToken();
+                const session = await cognitoLogin();
+                await updateTokens(session.getIdToken().getJwtToken(), session.getRefreshToken().getToken());
             } else {
-                oauth.token = cachedTokenResult.token;
+                oauth.idToken = cachedTokenResult.idToken;
+                oauth.refreshToken = cachedTokenResult.refreshToken;
             }
-
 
             function uuidToSummonerName(uuid, retries) {
                 return new Promise((resolve, reject) => {
                     if (retries < 0) {
                         reject("failed to get token")
                     }
-                    const token = oauth.token;
-                    axios.get(`${process.env.API_GATEWAY_BASE_URL}/production/tournament-service/users/${uuid}/video-games/LOL/regions/NA1`, {
+                    axios.get(`${process.env.API_GATEWAY_BASE_URL}/production/tournament-service/users/${uuid}/video-games/LOL`, {
                         headers: {
-                            "authorization": `Bearer ${token}`
+                            "Authorization": `Bearer ${oauth.idToken}`,
+                            "accept": "application/json, text/plain, */*",
+                            "accept-encoding": "gzip"
                         }
                     }).then(async ({ data, status }) => {
                         if (status == 200) {
                             resolve(data);
                         } else {
-                            oauth.token = await getNewToken();
+                            await getNewToken();
                             resolve(uuidToSummonerName(uuid, retries - 1));
                         }
                     }).catch(async (err) => {
                         console.log(err);
-                        oauth.token = await getNewToken();
+                        await getNewToken();
                         resolve(uuidToSummonerName(uuid, retries - 1));
                     })
                 });
@@ -137,9 +188,9 @@ module.exports = async function (context, req) {
             // do this code sequentially because each request could
             // update the global scoped oauth token for the next promise
             for (const uuid of untrackedAccounts) {
-                const name = await uuidToSummonerName(uuid, 2);
+                const name = await uuidToSummonerName(uuid, 1);
                 uuidsToAccount[uuid].summonerName = name;
-                // update the database with the accountId afterwards
+                // update the database with the puuid afterwards
                 databaseUpdates.push({ uuid, name });
             }
         }
@@ -157,9 +208,9 @@ module.exports = async function (context, req) {
             // fetch my account Id and store into mongodb
             const results = await Promise.all(databaseUpdates.map(({ uuid, name }) => new Promise(async (res, rej) => {
                 try {
-                    const { data: { accountId } } = await axios.get(`https://na1.api.riotgames.com/lol/summoner/v4/summoners/by-name/${encodeURIComponent(name)}?api_key=${process.env.RIOT_API_KEY}`);
-                    uuidsToAccount[uuid].accountId = accountId;
-                    res({ uuid, accountId });
+                    const { data: { puuid } } = await axios.get(`https://na1.api.riotgames.com/lol/summoner/v4/summoners/by-name/${encodeURIComponent(name)}?api_key=${process.env.RIOT_API_KEY}`);
+                    uuidsToAccount[uuid].puuid = puuid;
+                    res({ uuid, puuid });
                 } catch (err) {
                     rej(err);
                 }
