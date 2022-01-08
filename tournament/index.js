@@ -43,6 +43,17 @@ module.exports = async function (context, req) {
         }
     }
 
+    teams.sort((team1, team2) => team1.name.localeCompare(team2.name));
+    const paidTeams = [];
+    const unpaidTeams = [];
+    teams.forEach(team => {
+        if (team.status && team.status == "AWAITING_PAYMENT") {
+            unpaidTeams.push(team);
+        } else {
+            paidTeams.push(team);
+        }
+    });
+
     responseText += `<script>
 
         function getQueryVariable(variable) {
@@ -67,7 +78,14 @@ module.exports = async function (context, req) {
         });
         </script>
     `;
-    for ({ members: teamMembers, name: teamName } of teams) {
+
+    for ({ members: teamMembers, name: teamName } of paidTeams) {
+        responseText += `<a data-uuids="${encodeURIComponent(JSON.stringify(teamMembers.map(member => member.userUuid)))}">${teamName}</a></br>\n`;
+    }
+
+    responseText += "<br/>";
+    responseText += `<h3 style="margin-bottom: 10px;">Unpaid Teams</h3>`;
+    for ({ members: teamMembers, name: teamName } of unpaidTeams) {
         responseText += `<a data-uuids="${encodeURIComponent(JSON.stringify(teamMembers.map(member => member.userUuid)))}">${teamName}</a></br>\n`;
     }
 
