@@ -17,15 +17,26 @@ module.exports = async function (context, req) {
 
     const tournaments = results.map(tournament => {
         const amountString = "" + tournament.totalPrizePool.amount;
-        const prizeAmount = amountString.slice(0, -2) + "." + amountString.slice(-2) ;
+        const prizeAmount = amountString.slice(0, -2) + "." + amountString.slice(-2);
         return {
             ...tournament,
+            dateTime: new Date(tournament.startDate).getTime(),
             datePart: moment(new Date(tournament.startDate)).tz('America/Los_Angeles').format('dddd, MMM DD'),
             timePart: moment(new Date(tournament.startDate)).tz('America/Los_Angeles').format('hh:mm A'),
             prize: tournament.totalPrizePool.type == 'cash' ? "$" + prizeAmount : prizeAmount + " credits"
         }
     })
     
+    tournaments.sort((t1, t2) => {
+        if (t1.dateTime < t1.dateTime) {
+            return -1
+        } else if (t1.dateTime == t2.dateTime) {
+            return t1.name.localeCompare(t2.name);
+        } else {
+            return 1;
+        }
+    });
+
     const responseText = await ejs.renderFile(path.resolve(__dirname, "index.ejs"), { tournaments }); 
 
     context.res = {
